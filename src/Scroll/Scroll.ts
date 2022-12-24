@@ -1,8 +1,55 @@
 /// <reference types="@lipsurf/types/extension"/>
 declare const PluginBase: IPluginBase;
 
+interface SpeedLevel {
+  // time in milliseconds to delay executions of the function
+  // https://developer.mozilla.org/en-US/docs/Web/API/setInterval
+  intervalDelay: number;
+  // scroll factor, that determine how much of the page to move
+  scrollFactor: number;
+}
+
 let autoscrollIntervalId: number;
-const SCROLL_SPEED_FACTORS = [240, 120, 90, 60, 36, 24, 12, 6];
+
+const SCROLL_SPEED_LEVELS : SpeedLevel[] = [
+  {
+    intervalDelay: 8,
+    scrollFactor: 20
+  },
+  {
+    intervalDelay: 6,
+    scrollFactor: 15
+  },
+  {
+    intervalDelay: 1,
+    scrollFactor: 20
+  },
+  {
+    intervalDelay: 2,
+    scrollFactor: 24
+  },
+  {
+    intervalDelay: 2,
+    scrollFactor: 27
+  },
+  {
+    intervalDelay: 1,
+    scrollFactor: 29
+  },
+  {
+    intervalDelay: 1,
+    scrollFactor: 31
+  },
+  {
+    intervalDelay: 0,
+    scrollFactor: 35
+  },
+  {
+    intervalDelay: 0,
+    scrollFactor: 40
+  },
+];
+
 const SCROLL_DURATION = 400;
 const AUTOSCROLL_OPT = "autoscroll-index";
 let scrollNodes: HTMLElement[] = [];
@@ -15,23 +62,18 @@ function stopAutoscroll(): void {
 
 function setAutoscroll(indexDelta: number = 0) {
   let prevPos: number | undefined;
-  const zoomFactor =
-    window.outerWidth / window.document.documentElement.clientWidth;
+  const zoomFactor =  window.outerWidth / window.document.documentElement.clientWidth;
+
+  const currentScrollSpeedIndex = getCurrentScrollIndex(indexDelta);
+  const currentScrollSpeed = SCROLL_SPEED_LEVELS[currentScrollSpeedIndex];
+
   // need to add .1 (if it's less than a device pixel, no scrolling will happen)
-  const scrollFactor = Math.round((1 / zoomFactor) * 10) / 10 + 0.1;
-  const savedScrollSpeed = PluginBase.getPluginOption("Scroll", AUTOSCROLL_OPT);
-  let scrollSpeedIndex =
-    (typeof savedScrollSpeed === "number" ? savedScrollSpeed : 3) + indexDelta;
+  const scrollFactor = Math.round((1 / zoomFactor) * currentScrollSpeed.scrollFactor) / 10 + 0.1;
 
-  if (scrollSpeedIndex >= SCROLL_SPEED_FACTORS.length) {
-    scrollSpeedIndex = SCROLL_SPEED_FACTORS.length - 1;
-  } else if (scrollSpeedIndex < 0) {
-    scrollSpeedIndex = 0;
-  }
-
-  console.log("scroll speed", scrollSpeedIndex);
+  console.log(`Scroll speed index (${currentScrollSpeedIndex + 1}/${SCROLL_SPEED_LEVELS.length})`)
+  console.log("scroll speed", currentScrollSpeed);
   // save it as a preference
-  PluginBase.setPluginOption("Scroll", AUTOSCROLL_OPT, scrollSpeedIndex);
+  PluginBase.setPluginOption("Scroll", AUTOSCROLL_OPT, currentScrollSpeedIndex);
 
   window.clearInterval(autoscrollIntervalId);
   const scrollEl = getScrollEl();
@@ -40,6 +82,7 @@ function setAutoscroll(indexDelta: number = 0) {
       // @ts-ignore
       const scrollYPos = scrollEl.scrollY || scrollEl.scrollTop;
       scrollEl.scrollBy(0, scrollFactor);
+
       // if there was outside movement, or if we hit the bottom
       if (
         prevPos &&
@@ -49,8 +92,22 @@ function setAutoscroll(indexDelta: number = 0) {
         stopAutoscroll();
       }
       prevPos = scrollYPos;
-    }, SCROLL_SPEED_FACTORS[scrollSpeedIndex]);
+    }, currentScrollSpeed.intervalDelay);
   }
+}
+
+function getCurrentScrollIndex(indexDelta: number) {
+  const savedScrollSpeed = PluginBase.getPluginOption("Scroll", AUTOSCROLL_OPT);
+  let scrollSpeedIndex =
+    (typeof savedScrollSpeed === "number" ? savedScrollSpeed : 3) + indexDelta;
+
+    if (scrollSpeedIndex >= SCROLL_SPEED_LEVELS.length) {
+      scrollSpeedIndex = SCROLL_SPEED_LEVELS.length - 1;
+    } else if (scrollSpeedIndex < 0) {
+      scrollSpeedIndex = 0;
+    }
+
+    return scrollSpeedIndex;
 }
 
 // The following inspired by Surfingkeys
@@ -552,12 +609,22 @@ export default <IPluginBase & IPlugin>{
       },
       {
         name: "Speed Up",
-        match: ["faster", "speed up"],
+        match: ["faster", "speed up", "faster please"],
         activeDocument: true,
         normal: false,
         description: "Speed up the auto scroll",
         pageFn: () => {
           setAutoscroll(1);
+        },
+      },
+      {
+        name: "Fastest scroll",
+        match: ["fastest", "max scroll"],
+        activeDocument: true,
+        normal: false,
+        description: "Speed up the auto scroll to max",
+        pageFn: () => {
+          setAutoscroll(SCROLL_SPEED_FACTORS.length);
         },
       },
       {
